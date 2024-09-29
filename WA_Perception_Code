@@ -1,0 +1,106 @@
+'''
+File Name: WA_Perception_Code
+Author: Avanthika Senthil Kumar
+Sources that Helped: 
+ -https://www.youtube.com/watch?v=FbR9Xr0TVdY&t=37s (image detection)
+ -https://www.w3schools.com/datascience/ds_linear_slope.asp#:~:text=Find%20the%20Slope%20and%20Intercept,returns%20the%20slope%20and%20intercept. (best fit lines)
+'''
+
+
+
+
+import cv2
+from google.colab.patches import cv2_imshow
+import numpy as np
+
+
+#read an image
+image = cv2.imread("/content/red.png")
+
+#get attributes of image
+height, width, channel = image.shape
+
+#check to see if lines are evenly seperated by middle partition
+#cv2.line(image, (int(width/2), 0), (int(width/2), height), (0, 255,0), 2)
+
+#hsv scale an image
+hsvImage = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+#red tones range
+low_red = np.array([0, 120, 70])
+high_red = np.array([10, 255, 255])
+
+mask = cv2.inRange(hsvImage, low_red, high_red)
+
+#get the contours, or wherever red shows up in the image
+contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+
+left = []
+right = []
+
+#iterate through contours to find the ones that are part of the cones
+for contour in contours:
+  #estimate height and width of cones
+  max_width = 70
+  min_width = 20
+  max_height = 80
+  min_height = 10
+  x,y,w,h = cv2.boundingRect(contour)
+  #checking if contour is within the size bounds
+  if(w>min_width and w < max_width and h>min_height and h<max_height):
+    M = cv2.moments(contour)
+    #find centroid of the contour b/c x & y coordinates might show the wrong side of the whole contour
+    if M["m00"] != 0:
+        cX = int(M["m10"] / M["m00"])
+        cY = int(M["m01"] / M["m00"])
+        
+        #check if the centroid is on the left or right side and append it to the right array
+        if(cX<int(width/2)):
+          left.append((cX,cY))
+        else:
+          right.append((cX,cY))
+
+#Sort centroids by their y coordinate, so that it goes from the bottom to top
+left.sort(key=lambda y: y[0])
+right.sort(key=lambda y: y[0])
+
+
+
+#create regression line for left side
+xL_coordinate = np.array([point[0] for point in left])
+yL_coordinate = np.array([point[1] for point in left])
+
+#get slope and itercept for best fit line
+mL, bL = np.polyfit(xL_coordinate, yL_coordinate, 1)
+
+
+#math for ending value
+endL_math = -bL/mL
+
+#start and end positions for left side
+start_left = (0, int(bL))
+end_left = (int(endL_math), 0)
+
+#create regression line for right side
+xR_coordinate = np.array([point[0] for point in right])
+yR_coordinate = np.array([point[1] for point in right])
+
+#get slope and itercept for best fit line
+mR, bR = np.polyfit(xR_coordinate, yR_coordinate, 1)
+
+
+
+#math for ending value
+end_math = mR*width +bR
+
+#start and end positions for right side
+start_right = (0, int(bR))
+end_right = (int(width), int(end_math))
+
+#draw lines for path
+cv2.line(image, start_left, end_left, (255, 0, 0), 2)
+cv2.line(image, start_right, end_right, (255, 0, 0), 2)
+
+#Show the output image
+cv2_imshow(image)
+
